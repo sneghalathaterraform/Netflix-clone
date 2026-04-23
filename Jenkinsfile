@@ -34,18 +34,15 @@ pipeline {
             }
         }
 
-        stage('Upload to S3') {
+       stage('Upload to S3') {
             steps {
                 echo '>>> Uploading to S3...'
-                withCredentials([usernamePassword(
-                    credentialsId: 'aws-credentials',
-                    usernameVariable: 'AWS_ACCESS_KEY_ID',
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                )]) {
-                    sh """
-                        aws s3 cp ${APP_NAME}.zip s3://${S3_BUCKET}/releases/${APP_NAME}-${BUILD_NUMBER}.zip \
-                            --region us-east-1
-                    """
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    s3Upload(
+                        bucket: "${S3_BUCKET}",
+                        file: "${APP_NAME}.zip",
+                        path: "releases/${APP_NAME}-${BUILD_NUMBER}.zip"
+                    )
                 }
             }
         }
