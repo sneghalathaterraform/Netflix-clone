@@ -1,0 +1,34 @@
+---
+- name: Auto-Heal - Restart Tomcat
+  hosts: app_servers
+  become: yes
+
+  tasks:
+
+    - name: Log heal event
+      shell: echo "[HEAL] $(date) - Restarting Tomcat" >> /var/log/chaos.log
+
+    - name: Start Tomcat
+      systemd:
+        name: tomcat
+        state: started
+        enabled: yes
+
+    - name: Wait for Tomcat
+      wait_for:
+        host: localhost
+        port: 8080
+        delay: 5
+        timeout: 60
+
+    - name: Verify app is healthy
+      uri:
+        url: "http://localhost:8080"
+        status_code: 200
+      retries: 5
+      delay: 5
+      register: health
+
+    - name: Healing complete
+      debug:
+        msg: "AUTO-HEAL SUCCESS — Netflix Clone is BACK ONLINE! HTTP {{ health.status }}"

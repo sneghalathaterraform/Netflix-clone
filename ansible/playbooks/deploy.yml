@@ -1,0 +1,74 @@
+---
+- name: Deploy Netflix Clone App
+  hosts: app_servers
+  become: yes
+
+  vars:
+    tomcat_webapps: "/opt/tomcat/webapps/ROOT"
+    s3_bucket: "{{ s3_bucket | default('netflix-clone-devops-snegha') }}"
+    app_name: "{{ app_name | default('netflix-clone') }}"
+    build_number: "{{ build_number | default('latest') }}"
+    deploy_tmp: "/tmp/deploy"
+
+  tasks:
+
+    - name: Install unzip and awscli
+      dnf:
+        name:
+          - unzip
+          - awscli
+        state: present
+
+    - name: Create temp deploy directory
+      file:
+        path: "{{ deploy_tmp }}"
+        state: directory
+        mode: '0755'
+
+    - name: Download app package from S3
+      command: >
+        aws s3 cp s3://{{ s3_bucket }}/releases/{{ app_name }}-{{ build_number }}.zip
+        {{ deploy_tmp }}/{{ app_name }}.zip
+      environment:
+        AWS_DEFAULT_REGION: us-east-1
+
+    - name: Clear existing webapps/ROOT
+      file:
+        path: "{{ tomcat_webapps }}"
+        state: absent
+
+    - name: Recreate ROOT directory
+      file:
+        path: "{{ tomcat_webapps }}"
+        state: directory
+        mode: '0755'
+
+    - name: Extract new deployment
+      unarchive:
+        src: "{{ deploy_tmp }}/{{ app_name }}.zip"
+        dest: "{{ tomcat_webapps }}"
+        remote_src: yes
+
+    - name: Restart Tomcat
+      systemd:
+        name: tomcat
+        state: restarted
+
+    - name: Wait for Tomcat
+      wait_for:
+        host: localhost
+        port: 8080
+        delay: 5
+        timeout: 60
+
+    - name: Health check
+      uri:
+        url: "http://localhost:8080"
+        status_code: 200
+      retries: 5
+      delay: 5
+      register: health
+
+    - name: Deployment success
+      debug:
+        msg: "Netflix Clone deployed! HTTP {{ health.status }}"

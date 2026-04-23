@@ -1,0 +1,25 @@
+---
+- name: Chaos Engineering - Kill Tomcat
+  hosts: app_servers
+  become: yes
+
+  tasks:
+
+    - name: Log chaos event
+      shell: echo "[CHAOS] $(date) - Killing Tomcat" >> /var/log/chaos.log
+
+    - name: Stop Tomcat service
+      systemd:
+        name: tomcat
+        state: stopped
+
+    - name: Confirm Tomcat is down
+      wait_for:
+        host: localhost
+        port: 8080
+        state: stopped
+        timeout: 30
+
+    - name: Chaos confirmed
+      debug:
+        msg: "CHAOS INJECTED — Tomcat is DOWN. Run heal.yml to recover."
